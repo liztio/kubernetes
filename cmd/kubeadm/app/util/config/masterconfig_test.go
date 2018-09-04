@@ -36,6 +36,7 @@ const (
 	master_incompleteYAML = "testdata/defaulting/master/incomplete.yaml"
 	master_defaultedYAML  = "testdata/defaulting/master/defaulted.yaml"
 	master_invalidYAML    = "testdata/validation/invalid_mastercfg.yaml"
+	cluster_invalidYAML   = "testdata/validation/invalid_clusterconfig.yaml"
 )
 
 func diff(expected, actual []byte) string {
@@ -124,6 +125,18 @@ func TestConfigFileAndDefaultsToInternalConfig(t *testing.T) {
 					rt.in, rt.out, rt.groupVersion.String(), diff(expected, actual))
 			}
 		})
+	}
+}
+
+func TestSpuriousFieldThrowsError(t *testing.T) {
+	clusterBytes, err := ioutil.ReadFile(cluster_invalidYAML)
+	if err != nil {
+		t.Fatalf("couldn't load yaml file: %v", err)
+	}
+
+	_, err = BytesToInternalConfig(clusterBytes)
+	if err == nil {
+		t.Error("expected error, got nil")
 	}
 }
 

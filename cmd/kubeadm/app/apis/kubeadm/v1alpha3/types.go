@@ -213,7 +213,7 @@ type Etcd struct {
 // LocalEtcd describes that kubeadm should run an etcd cluster locally
 type LocalEtcd struct {
 
-	// Image specifies which container image to use for running etcd.
+	// Image specifies which containe
 	// If empty, automatically populated by kubeadm using the image
 	// repository and default etcd version.
 	Image string `json:"image"`
