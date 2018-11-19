@@ -31,6 +31,7 @@ import (
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	certsphase "k8s.io/kubernetes/cmd/kubeadm/app/phases/certs"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
+	"k8s.io/kubernetes/cmd/kubeadm/app/util/pkiutil"
 	"k8s.io/kubernetes/pkg/util/normalizer"
 )
 
@@ -234,6 +235,15 @@ func runCAPhase(ca *certsphase.KubeadmCert) func(c workflow.RunData) error {
 			return nil
 		}
 
+		if _, err := pkiutil.TryLoadCertFromDisk(data.CertificateDir(), ca.BaseName); err == nil {
+			if pkiutil.TryLoadKeyFromDisk(data.CertificateDir(), ca.BaseName); err == nil {
+				fmt.Printf("[certs] Using existing %s certificate authority\n", ca.BaseName)
+				return nil
+			}
+			fmt.Printf("[certs] Using existing %s keyless certificate authority", ca.BaseName)
+			return nil
+		}
+
 		// if using external etcd, skips etcd certificate authority generation
 		if data.Cfg().Etcd.External != nil && ca.Name == "etcd-ca" {
 			fmt.Printf("[certs] External etcd mode: Skipping %s certificate authority generation\n", ca.BaseName)
@@ -260,6 +270,20 @@ func runCertPhase(cert *certsphase.KubeadmCert, caCert *certsphase.KubeadmCert) 
 		// if external CA mode, skip certificate generation
 		if data.ExternalCA() {
 			fmt.Printf("[certs] External CA mode: Using existing %s certificate\n", cert.BaseName)
+			return nil
+		}
+
+		if certData, _, err := pkiutil.TryLoadCertAndKeyFromDisk(data.CertificateDir(), cert.BaseName); err == nil {
+			caCertData, err := pkiutil.TryLoadCertFromDisk(data.CertificateDir(), caCert.BaseName)
+			if err != nil {
+				return errors.Wrapf(err, "couldn't load CA certificate %s", caCert.Name)
+			}
+
+			if err := certData.CheckSignatureFrom(caCertData); err != nil {
+				return errors.Wrapf(err, "[certs] certificate %s not signed by CA certificate %s", cert.BaseName, caCert.BaseName)
+			}
+
+			fmt.Printf("[certs] Using existing %s certificate and key on disk\n", cert.BaseName)
 			return nil
 		}
 
